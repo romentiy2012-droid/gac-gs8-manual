@@ -1,0 +1,56 @@
+name: Подготовка финального APK GAC GS8
+
+on:
+  push:
+    branches: ["agent/android-apk"]
+    paths:
+      - ".github/workflows/build-android-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Получение файлов проекта
+        uses: actions/checkout@v4
+
+      - name: Установка Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Установка Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Подготовка материалов руководства
+        run: |
+          rm -rf android/app/src/main/assets/site
+          mkdir -p android/app/src/main/assets/site
+          unzip -q gac-gs8-manual-site.zip -d android/app/src/main/assets/site
+
+      - name: Сборка неподписанного release APK
+        working-directory: android
+        run: gradle --no-daemon --stacktrace assembleRelease
+
+      - name: Подготовка APK и инструмента подписи
+        run: |
+          mkdir -p release-output
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk release-output/GAC-GS8-Rukovodstvo-unsigned.apk
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          cp "$BUILD_TOOLS/lib/apksigner.jar" release-output/apksigner.jar
+
+      - name: Сохранение файлов release
+        uses: actions/upload-artifact@v4
+        with:
+          name: GAC-GS8-Release-Unsigned
+          path: release-output/
+          if-no-files-found: error
+          retention-days: 7
